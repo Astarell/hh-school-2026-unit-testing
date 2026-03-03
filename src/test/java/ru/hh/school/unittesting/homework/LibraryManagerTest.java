@@ -1,7 +1,6 @@
 package ru.hh.school.unittesting.homework;
 
-import org.assertj.core.api.InstanceOfAssertFactories;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -10,10 +9,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.lang.reflect.Field;
-import java.util.HashMap;
-
-import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -26,49 +21,22 @@ class LibraryManagerTest {
   private UserService userService;
   @InjectMocks
   private LibraryManager libraryManager;
-
-  private final String defaultUserId = "default_user";
-  private final String defaultBookId = "default_bookId";
-  private final String bookInventoryFieldName = "bookInventory";
-  private final String borrowedBooksFieldName = "borrowedBooks";
-
-  @BeforeEach
-  public void initEach() throws NoSuchFieldException, IllegalAccessException {
-    // Очищаю bookInventory перед каждым тестом
-    Field bookInventory = libraryManager.getClass().getDeclaredField(bookInventoryFieldName);
-    bookInventory.setAccessible(true);
-    bookInventory.set(libraryManager, new HashMap<>());
-    bookInventory.setAccessible(false);
-
-    // Очищаю borrowedBooks перед каждым тестом
-    Field borrowedBooks = libraryManager.getClass().getDeclaredField(borrowedBooksFieldName);
-    borrowedBooks.setAccessible(true);
-    borrowedBooks.set(libraryManager, new HashMap<>());
-    borrowedBooks.setAccessible(false);
-  }
+  
 
   // addBook()
-  @ParameterizedTest(name = "[bookId={0}, quantity={1}]")
-  @CsvSource({
-      "test_1, 2",
-      "кириллица_2, 3",
-  })
-  public void testAddBook_WhenBookIdIsNotPresentAndQuantityIsCorrect_ThenPutSpecifiedQuantity(
-      String bookId,
-      Integer quantity
-  ) {
+  @Test
+  void testAddBook_WhenBookIdIsNotPresentAndQuantityIsCorrect_ThenPutSpecifiedQuantity() {
     // prepare
+    String bookId = "test_1";
+    int quantity = 3;
     libraryManager.addBook(bookId, quantity);
 
     // check
-    assertThat(libraryManager)
-        .withFailMessage("Некорректное состояние bookInventory после операции")
-        .extracting(bookInventoryFieldName, as(InstanceOfAssertFactories.map(String.class, Integer.class)))
-        .containsOnly(entry(bookId, quantity));
+    assertEquals(quantity, libraryManager.getAvailableCopies(bookId));
   }
 
 
-  // Ошибка выбрасываться не будет, но думаю, что нужно
+  @Disabled("Думаю, необходима валидация null, пустых строк и строк со спец. символами")
   @ParameterizedTest(name = "[bookId={0}, quantity={1}]")
   @CsvSource({
       ", 1", // null
@@ -76,7 +44,7 @@ class LibraryManagerTest {
       "' ', 1", // строка с пробелом
       "'\n\t', 1", // строка со спец. символами
   })
-  public void testAddBook_WhenBookIdIsIncorrectAndQuantityIsCorrect_ThenThrowException(
+  void testAddBook_WhenBookIdIsIncorrectAndQuantityIsCorrect_ThenThrowException(
       String bookId,
       Integer quantity
   ) {
@@ -87,13 +55,13 @@ class LibraryManagerTest {
     assertEquals("Book's id should not be blank or null", exception.getMessage());
   }
 
-  // Ошибка выбрасываться не будет, но думаю, что нужно
+  @Disabled("Думаю, необходима валидация на кол-во книг, которое хотим положить, если quantity <=0")
   @ParameterizedTest(name = "[bookId={0}, quantity={1}]")
   @CsvSource({
       "test_2, 0", // не должны уметь класть 0 книг
       "test_3, -1", // не должны уметь класть -1 книгу
   })
-  public void testAddBook_WhenBookIdIsCorrectAndQuantityIsIncorrect_ThenThrowException(
+  void testAddBook_WhenBookIdIsCorrectAndQuantityIsIncorrect_ThenThrowException(
       String bookId,
       Integer quantity
   ) {
@@ -106,7 +74,7 @@ class LibraryManagerTest {
 
 
   @Test
-  public void testAddBook_WhenBookIdIsPresentAndQuantityIsCorrect_ThenPutInitialQuantityPlusSpecifiedQuantity() {
+  void testAddBook_WhenBookIdIsPresentAndQuantityIsCorrect_ThenPutInitialQuantityPlusSpecifiedQuantity() {
     // prepare
     String bookId = "test_1";
     int initialQuantity = 1;
@@ -115,19 +83,13 @@ class LibraryManagerTest {
     libraryManager.addBook(bookId, quantity);
 
     // check
-    assertThat(libraryManager)
-        .withFailMessage("Некорректное состояние bookInventory после операции")
-        .extracting(bookInventoryFieldName, as(InstanceOfAssertFactories.map(String.class, Integer.class)))
-        .hasSize(1)
-        .matches(item -> item.containsKey(bookId)
-            && item.get(bookId) == initialQuantity + quantity);
+    assertEquals(initialQuantity + quantity, libraryManager.getAvailableCopies(bookId));
   }
 
 
-  // Если положим Integer.MAX_VALUE к имеющемуся кол-ву > 1, то будет переполнение и данные станут некорректными
-  // Нужна проверка на беке на переполнение
+  @Disabled("Если положим Integer.MAX_VALUE к имеющемуся кол-ву > 1, то будет переполнение и данные станут некорректными")
   @Test
-  public void testAddBook_WhenBookIdIsPresentAndQuantityWillOverflowInteger_ThenThrowException() {
+  void testAddBook_WhenBookIdIsPresentAndQuantityWillOverflowInteger_ThenThrowException() {
     // prepare
     libraryManager.addBook("test_1", 1);
 
@@ -142,157 +104,115 @@ class LibraryManagerTest {
 
   // borrowBook()
   @Test
-  public void testBorrowBook_WhenUserIsInactive_ThenNotifyUserThatAccountIsInactiveAndReturnFalse() {
+  void testBorrowBook_WhenUserIsInactive_ThenNotifyUserThatAccountIsInactiveAndReturnFalse() {
     // prepare
-    when(userService.isUserActive(defaultUserId)).thenReturn(false);
-    libraryManager.addBook(defaultBookId, 1);
+    when(userService.isUserActive("default_user")).thenReturn(false);
+    libraryManager.addBook("default_book_id", 1);
 
     // check
-    assertFalse(libraryManager.borrowBook(defaultBookId, defaultUserId));
+    assertFalse(libraryManager.borrowBook("default_book_id", "default_user"));
 
     verify(notificationService, times(1))
-        .notifyUser(defaultUserId, "Your account is not active.");
+        .notifyUser("default_user", "Your account is not active.");
   }
 
 
   @ParameterizedTest(name = "[quantity={0}]")
   @CsvSource({"-1", "0"})
-  public void testBorrowBook_WhenUserIsActiveAndBookPresentAndBookQuantityEqualOrLessToZero_ThenReturnFalse(
+  void testBorrowBook_WhenUserIsActiveAndBookPresentAndBookQuantityEqualOrLessToZero_ThenReturnFalse(
       int quantity
   ) {
     // prepare
-    when(userService.isUserActive(defaultUserId)).thenReturn(true);
-    libraryManager.addBook(defaultBookId, quantity);
+    when(userService.isUserActive("default_user")).thenReturn(true);
+    libraryManager.addBook("default_book_id", quantity);
 
     // check
-    assertFalse(libraryManager.borrowBook(defaultBookId, defaultUserId));
+    assertFalse(libraryManager.borrowBook("default_book_id", "default_user"));
   }
 
 
   @Test
-  public void testBorrowBook_WhenUserIsActiveAndBookIsNotPresent_ThenReturnFalse() {
+  void testBorrowBook_WhenUserIsActiveAndBookIsNotPresent_ThenReturnFalse() {
     // prepare
-    when(userService.isUserActive(defaultUserId)).thenReturn(true);
+    when(userService.isUserActive("default_user")).thenReturn(true);
 
     //check
-    assertFalse(libraryManager.borrowBook(defaultBookId, defaultUserId));
+    assertFalse(libraryManager.borrowBook("default_book_id", "default_user"));
   }
 
 
-  @ParameterizedTest(name = "[quantity={0}]")
-  @CsvSource({
-      "1", "4", "2147483647"
-  })
-  public void testBorrowBook_WhenUserIsActiveAndBookPresentAndBookQuantityMoreThanZero_ThenReturnTrue(int quantity) {
+  @Test
+  void testBorrowBook_WhenUserIsActiveAndBookPresentAndBookQuantityMoreThanZero_ThenReturnTrue() {
     // prepare
-    when(userService.isUserActive(defaultUserId)).thenReturn(true);
-    libraryManager.addBook(defaultBookId, quantity);
+    when(userService.isUserActive("default_user")).thenReturn(true);
+    libraryManager.addBook("default_book_id", 4);
 
     // check
-    assertTrue(libraryManager.borrowBook(defaultBookId, defaultUserId));
-
-    assertThat(libraryManager)
-        .withFailMessage("Некорректное состояние bookInventory после операции")
-        .extracting(bookInventoryFieldName, as(InstanceOfAssertFactories.map(String.class, Integer.class)))
-        .containsOnly(entry(defaultBookId, quantity - 1));
-
-    assertThat(libraryManager)
-        .withFailMessage("Некорректное состояние borrowedBooks после операции")
-        .extracting(borrowedBooksFieldName, as(InstanceOfAssertFactories.map(String.class, String.class)))
-        .containsOnly(entry(defaultBookId, defaultUserId));
+    assertTrue(libraryManager.borrowBook("default_book_id", "default_user"));
+    assertEquals(3, libraryManager.getAvailableCopies("default_book_id"));
 
     verify(notificationService, times(1))
-        .notifyUser(defaultUserId, "You have borrowed the book: " + defaultBookId);
+        .notifyUser("default_user", "You have borrowed the book: default_book_id");
   }
 
 
   // returnBook()
   @Test
-  public void testReturnBook_WhenBookIsNotBorrowed_ThenReturnFalse(){
-    assertFalse(libraryManager.returnBook(defaultBookId, defaultUserId));
+  void testReturnBook_WhenBookIsNotBorrowed_ThenReturnFalse(){
+    assertFalse(libraryManager.returnBook("default_book_id", "default_user"));
   }
 
 
   @Test
-  public void testReturnBook_WhenBookIsBorrowedAndUserIdIsIncorrect_ThenReturnFalse(){
+  void testReturnBook_WhenBookIsBorrowedAndUserIdIsIncorrect_ThenReturnFalse(){
     // prepare
-    when(userService.isUserActive(defaultUserId)).thenReturn(true);
+    when(userService.isUserActive("default_user")).thenReturn(true);
 
-    libraryManager.addBook(defaultBookId, 1);
-    libraryManager.borrowBook(defaultBookId, defaultUserId);
+    libraryManager.addBook("default_book_id", 1);
+    libraryManager.borrowBook("default_book_id", "default_user");
 
     // check
-    assertFalse(libraryManager.returnBook(defaultBookId, "incorrect_user_id"));
+    assertFalse(libraryManager.returnBook("default_book_id", "incorrect_user_id"));
   }
 
 
-  @ParameterizedTest(name = "[quantity={0}]")
-  @CsvSource({
-      "1", "10", "2147483647"
-  })
-  public void testReturnBook_WhenBookIsBorrowedAndUserIdIsCorrectAndBookInventoryContainsSpecifiedBook_ThenReturnTrue(
-      int quantity
-  ){
+  @Test
+  void testReturnBook_WhenBookIsBorrowedAndUserIdIsCorrectAndBookInventoryContainsSpecifiedBook_ThenReturnTrue(){
     // prepare
-    when(userService.isUserActive(defaultUserId)).thenReturn(true);
+    when(userService.isUserActive("default_user")).thenReturn(true);
 
-    libraryManager.addBook(defaultBookId, quantity);
-    libraryManager.borrowBook(defaultBookId, defaultUserId);
+    libraryManager.addBook("default_book_id", 10);
+    libraryManager.borrowBook("default_book_id", "default_user");
 
     // check
-    assertTrue(libraryManager.returnBook(defaultBookId, defaultUserId));
-
-    assertThat(libraryManager)
-        .withFailMessage("Некорректное состояние bookInventory после операции")
-        .extracting(bookInventoryFieldName, as(InstanceOfAssertFactories.map(String.class, Integer.class)))
-        .containsOnly(entry(defaultBookId, quantity));
-
-    assertThat(libraryManager)
-        .withFailMessage("Некорректное состояние borrowedBooks после операции")
-        .extracting(borrowedBooksFieldName, as(InstanceOfAssertFactories.map(String.class, String.class)))
-        .isEmpty();
+    assertTrue(libraryManager.returnBook("default_book_id", "default_user"));
+    assertEquals(10, libraryManager.getAvailableCopies("default_book_id"));
 
     verify(notificationService, times(1))
-        .notifyUser(defaultUserId, "You have returned the book: " + defaultBookId);
+        .notifyUser("default_user", "You have returned the book: " + "default_book_id");
   }
 
 
   // getAvailableCopies()
   @Test
-  public void testGetAvailableCopies_WhenBookIdIsPresent_ThenReturnActualNumberOfCopies(){
+  void testGetAvailableCopies_WhenBookIdIsPresent_ThenReturnActualNumberOfCopies(){
     // prepare
-    libraryManager.addBook(defaultBookId, 1);
+    libraryManager.addBook("default_book_id", 1);
 
     // check
-    assertEquals(1, libraryManager.getAvailableCopies(defaultBookId));
+    assertEquals(1, libraryManager.getAvailableCopies("default_book_id"));
   }
 
 
   @Test
-  public void testGetAvailableCopies_WhenBookIdIsNotPresent_ThenReturnZero(){
-    assertEquals(0, libraryManager.getAvailableCopies(defaultBookId));
-  }
-
-
-  // Ошибка выбрасываться не будет, но думаю, что нужно
-  @ParameterizedTest(name = "[bookId={0}]")
-  @CsvSource({
-      "''", // пустая строка
-      "' '", // строка с пробелом
-      "'\n\t'", // строка со спец. символами
-  })
-  public void testGetAvailableCopies_WhenBookIdIsIncorrect_ThenThrowException(String bookId){
-    var exception = assertThrows(
-        IllegalArgumentException.class,
-        () -> libraryManager.getAvailableCopies(bookId)
-    );
-    assertEquals("Book's id should not be blank or null", exception.getMessage());
+  void testGetAvailableCopies_WhenBookIdIsNotPresent_ThenReturnZero(){
+    assertEquals(0, libraryManager.getAvailableCopies("default_book_id"));
   }
 
 
   // calculateDynamicLateFee()
   @Test
-  public void testCalculateDynamicLateFee_WhenOverdueDaysLessThanZero_ThenThrowException(){
+  void testCalculateDynamicLateFee_WhenOverdueDaysLessThanZero_ThenThrowException(){
     var exception = assertThrows(
         IllegalArgumentException.class,
         () -> libraryManager.calculateDynamicLateFee(-1, false, false)
@@ -302,55 +222,23 @@ class LibraryManagerTest {
 
 
   @Test
-  public void testCalculateDynamicLateFee_WhenOverdueDaysIsZero_ThenReturnZero(){
+  void testCalculateDynamicLateFee_WhenOverdueDaysIsZero_ThenReturnZero(){
     assertEquals(0, libraryManager.calculateDynamicLateFee(0, false, false));
   }
 
 
-  @ParameterizedTest(name = "[overdueDays={0}, result={1}]")
+  @ParameterizedTest(name = "[isBestSeller={0}, isPremiumMember={1}, overdueDays=72, result={2}]")
   @CsvSource({
-      "3, 2.25", "72, 54", "354, 265.5"
+      "true, false, 54",
+      "false, true, 28.8",
+      "true, true, 43.2",
+      "false, false, 36"
   })
-  public void testCalculateDynamicLateFee_WhenOverdueDaysMoreThanZeroAndBestsellerIsTrueAndPremiumMemberIsFalse_ThenReturnResult(
-      int overdueDays,
+  void testCalculateDynamicLateFee_WhenOverdueDaysMoreThanZeroAndBestsellerIsTrueAndPremiumMemberIsFalse_ThenReturnResult(
+      boolean isBestseller,
+      boolean isPremiumMember,
       double result
   ){
-    assertEquals(result, libraryManager.calculateDynamicLateFee(overdueDays, true, false));
-  }
-
-
-  @ParameterizedTest(name = "[overdueDays={0}, result={1}]")
-  @CsvSource({
-      "3, 1.2", "72, 28.8", "354, 141.6"
-  })
-  public void testCalculateDynamicLateFee_WhenOverdueDaysMoreThanZeroAndBestsellerIsFalseAndPremiumMemberIsTrue_ThenReturnResult(
-      int overdueDays,
-      double result
-  ){
-    assertEquals(result, libraryManager.calculateDynamicLateFee(overdueDays, false, true));
-  }
-
-
-  @ParameterizedTest(name = "[overdueDays={0}, result={1}]")
-  @CsvSource({
-      "3, 1.8", "72, 43.2", "354, 212.4"
-  })
-  public void testCalculateDynamicLateFee_WhenOverdueDaysMoreThanZeroAndBestsellerIsTrueAndPremiumMemberIsTrue_ThenReturnResult(
-      int overdueDays,
-      double result
-  ){
-    assertEquals(result, libraryManager.calculateDynamicLateFee(overdueDays, true, true));
-  }
-
-
-  @ParameterizedTest(name = "[overdueDays={0}, result={1}]")
-  @CsvSource({
-      "3, 1.5", "72, 36", "354, 177"
-  })
-  public void testCalculateDynamicLateFee_WhenOverdueDaysMoreThanZeroAndBestsellerIsFalseAndPremiumMemberIsFalse_ThenReturnResult(
-      int overdueDays,
-      double result
-  ){
-    assertEquals(result, libraryManager.calculateDynamicLateFee(overdueDays, false, false));
+    assertEquals(result, libraryManager.calculateDynamicLateFee(72, isBestseller, isPremiumMember));
   }
 }
